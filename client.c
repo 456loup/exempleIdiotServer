@@ -25,7 +25,6 @@ void *recvHandling(void *args){
     char message[BUFFER_TAILLE];
     int nbRecu; 
     while(1){
-	sleep(1); 
         pthread_mutex_lock(&reservationSocket);    
         nbRecu = recv(sockfd , message , BUFFER_TAILLE , 0); 
         printf("le message recu  %s " , message); 
@@ -43,7 +42,8 @@ void *sendHandling(void *args){
        puts(" entrez le message que vous souhaitez envoyer : "); 
        fgets(message , BUFFER_TAILLE , stdin);
        nbRecu = send(sockfd , message , BUFFER_TAILLE , 0);
-       pthread_mutex_unlock(&reservationSocket);    
+       pthread_mutex_unlock(&reservationSocket);   
+       sleep(2);  
     }
 
 }
@@ -72,9 +72,7 @@ int main(void){
     pthread_create(&reception , NULL ,   &recvHandling , NULL);
 
     pthread_join(envoi , NULL); 
-    pthread_join(reception , NULL);
-
-     
+    pthread_join(reception , NULL);    
 
     printf(" on sort merci aurevoir "); 
 }

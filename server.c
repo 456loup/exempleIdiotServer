@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <pthread.h>
+#include <signal.h> 
 
 #define MAX_CLIENT 10
 #define BUFFER_TAILLE  2040
@@ -24,20 +25,19 @@ typedef struct{
     char name[NAME_LEN]; 
 }client_t; 
 
-client_t * clients[MAX_CLIENT]; 
+client_t *clients[MAX_CLIENT]; 
 
 pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 
 void str_overwrite_stdout(){
     printf("   ");
     fflush(stdout); 
 }
 
-void str_trim_lf(char *arr , int length){
+void trim(char *arr , int length){
     for(int i = 0 ; i < length ; i++){
         if(arr[i] == '\n'){
-	    arr[i] = '\0';
+	    arr[i] = ' ';
 	    break;  
 	}
     }
@@ -47,14 +47,15 @@ void queue_add(client_t *cl){
 
     pthread_mutex_lock(&clients_mutex);
     for(int i = 0 ; i < MAX_CLIENT ; i++){
-        if(!clients[i]){
-	    clients[i] = cl;  
+        puts(" ptn on comprend rien apres le mutex dans la boucle \n  "); 
+        if(clients[i] == NULL){
+	    clients[i] = cl;
+	    fflush(stdout); 
+	    printf(" APRES L AFFECTATION %p " , clients[i]);  
             break; 	
 	}
     }
-
     pthread_mutex_unlock(&clients_mutex);  
-
 }
 
 void queue_remove(int uid){
@@ -77,7 +78,7 @@ void send_message(char *s , int uid){
     pthread_mutex_lock(&clients_mutex); 	
 
     for(int i = 0 ; i < MAX_CLIENT ; i++){
-        if(clients[i]->uid != uid){
+        if(clients[i] != NULL &&  clients[i]->uid != uid){
 	    if(write(clients[i]->sockfd , s , strlen(s)) < 0){
 	        printf(" ERREUR AU NIVEAU DE L ENVOI DE LA CHAINE %s " , s);
 	        break; 	
@@ -90,37 +91,45 @@ void send_message(char *s , int uid){
 
 void *handle_client(void *arg){
 
+    printf(" on arrive dans le handle client\n "); 
     char buffer[BUFFER_TAILLE]; 
     char name[NAME_LEN]; 
     int leave , flag = 0;
     cli_count++;
     
     client_t *cli = (client_t*)arg;  
-
+    
+    puts(" on a reussi a faire l affect cli "); 
     if(recv(cli->sockfd , name , NAME_LEN , 0) <= 0 || strlen(name) < 2 || strlen(name) >= NAME_LEN - 1){
-        printf(" Entrez le nom correctement ");
+        printf(" Entrez le nom correctement \n");
 	leave_flag = 1; 
     }else{
-        strcpy(cli->name , name); 
+        fflush(stdout); 	
+        printf("  ON EST LA  \n");
+        //trim(name , NAME_LEN);	
+        strcpy(cli->name , name);
+
 	sprintf(buffer , " %s a joint le chat \n " , cli->name);
+	printf(" HERE ME OUT NOW %s  \n " , buffer); 
         
-        printf(" jusquici tt va bien "); 
-        send_message(buffer , cli->uid); 	
+        send_message(buffer , cli->uid); 
     }
 
-    bzero(buffer ,  BUFFER_TAILLE); 
+    bzero(buffer ,  BUFFER_TAILLE);
 
     while(1){
+        
+	bzero(buffer , BUFFER_TAILLE); 
+	
         if(leave_flag){
 	    break; 
 	}
 
         int receive = recv(cli->sockfd , buffer , BUFFER_TAILLE , 0);
-    
+        //trim(buffer , BUFFER_TAILLE);  
         if(receive > 0){
             if(strlen(buffer) > 0){
 	        send_message(buffer , cli->uid); 
-	        str_trim_lf(buffer , strlen(buffer)); 
 	        printf(" %s -> %s " , buffer , cli->name);
             }	
         }else if(receive == 0 || strcmp(buffer , "exit") == 0){
@@ -129,7 +138,7 @@ void *handle_client(void *arg){
             send_message(buffer , cli->uid); 
             leave_flag = 1; 	
         }else{
-            printf(" ERROR "); 
+            printf(" ERROR \n"); 
             leave_flag = 1; 
         }
 
@@ -153,7 +162,7 @@ int main(void){
    char *tropCli = " Y A TROP DE CLIENT "; 
    int port = 8080; 
    
-   int listenfd = 0 , connfd = 0; 
+   int listenfd = 0 , connfd = 0 , option = 0; 
    struct sockaddr_in serv_addr; 
    struct sockaddr_in cli_addr; 
    pthread_t tid; 
@@ -161,9 +170,19 @@ int main(void){
    listenfd = socket(AF_INET , SOCK_STREAM , 0); 
    serv_addr.sin_family = AF_INET; 
    serv_addr.sin_addr.s_addr = inet_addr(ip); 
-   serv_addr.sin_port = htons(port); 
+   serv_addr.sin_port = htons(port);
+
+   signal(SIGPIPE , SIG_IGN);  
+
+   if(setsockopt(listenfd , SOL_SOCKET , (SO_REUSEPORT | SO_REUSEADDR) , (char *)&option , sizeof(option)) < 0){
+   
+       printf(" ERROR : setsockopt "); 
+       return EXIT_FAILURE; 
+   
+   }
 
    if(bind(listenfd , (struct sockaddr*) &serv_addr , sizeof(serv_addr)) < 0){
+       printf(" on peut pas bind "); 
        exit(1);     
    } 
 
@@ -177,20 +196,28 @@ int main(void){
    while(1){
    
        socklen_t clilen = sizeof(cli_addr); 
-       connfd = accept(listenfd , (struct sockaddr*) &cli_addr , &clilen); 
+       connfd = accept(listenfd , (struct sockaddr*) &cli_addr , &clilen);
+
        if( (cli_count + 1) == MAX_CLIENT){
            send(connfd , tropCli , strlen(tropCli)  , 0); 
        }
+	
+       
+       client_t *cli =  malloc(sizeof(client_t));
+       if(cli == NULL){
+           printf(" ERREUR FATAL AU NIVEAU DE L ALLOCATION DE LA MEMOIRE "); 
+           exit(1);  
+       }
 
-       client_t *cli = (client_t *) malloc(sizeof(client_t));
        cli->address = cli_addr; 
        cli->sockfd = connfd; 
        cli->uid = uid++;
-       
 
-       queue_add(cli); 
+       fflush(stdout); 
+       printf(" bon beh tt va bien %d " , cli->uid); 
+       queue_add(cli);
+       sleep(5);  
        pthread_create(&tid , NULL , &handle_client , (void*)cli);   
-       sleep(1); 
    }
 
    return EXIT_SUCCESS;
