@@ -47,7 +47,6 @@ void queue_add(client_t *cl){
 
     pthread_mutex_lock(&clients_mutex);
     for(int i = 0 ; i < MAX_CLIENT ; i++){
-        puts(" ptn on comprend rien apres le mutex dans la boucle \n  "); 
         if(clients[i] == NULL){
 	    clients[i] = cl;
 	    fflush(stdout); 
@@ -91,7 +90,6 @@ void send_message(char *s , int uid){
 
 void *handle_client(void *arg){
 
-    printf(" on arrive dans le handle client\n "); 
     char buffer[BUFFER_TAILLE]; 
     char name[NAME_LEN]; 
     int leave , flag = 0;
@@ -99,18 +97,15 @@ void *handle_client(void *arg){
     
     client_t *cli = (client_t*)arg;  
     
-    puts(" on a reussi a faire l affect cli "); 
     if(recv(cli->sockfd , name , NAME_LEN , 0) <= 0 || strlen(name) < 2 || strlen(name) >= NAME_LEN - 1){
         printf(" Entrez le nom correctement \n");
 	leave_flag = 1; 
     }else{
         fflush(stdout); 	
-        printf("  ON EST LA  \n");
         //trim(name , NAME_LEN);	
         strcpy(cli->name , name);
 
 	sprintf(buffer , " %s a joint le chat \n " , cli->name);
-	printf(" HERE ME OUT NOW %s  \n " , buffer); 
         
         send_message(buffer , cli->uid); 
     }
@@ -214,7 +209,6 @@ int main(void){
        cli->uid = uid++;
 
        fflush(stdout); 
-       printf(" bon beh tt va bien %d " , cli->uid); 
        queue_add(cli);
        sleep(5);  
        pthread_create(&tid , NULL , &handle_client , (void*)cli);   

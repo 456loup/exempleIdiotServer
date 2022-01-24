@@ -10,7 +10,6 @@
 #define BUFFER_TAILLE 500
 
 
-
 /* definition des variables globales   */
 
 pthread_t reception , envoi; 
@@ -25,10 +24,8 @@ void *recvHandling(void *args){
     char message[BUFFER_TAILLE];
     int nbRecu; 
     while(1){
-        pthread_mutex_lock(&reservationSocket);    
         nbRecu = recv(sockfd , message , BUFFER_TAILLE , 0); 
         printf("le message recu  %s " , message); 
-        pthread_mutex_unlock(&reservationSocket);    
     }
 }
 
@@ -38,12 +35,9 @@ void *sendHandling(void *args){
     int nbRecu;  
     while(1){
       
-       pthread_mutex_lock(&reservationSocket);    
        puts(" entrez le message que vous souhaitez envoyer : "); 
        fgets(message , BUFFER_TAILLE , stdin);
        nbRecu = send(sockfd , message , BUFFER_TAILLE , 0);
-       pthread_mutex_unlock(&reservationSocket);   
-       sleep(2);  
     }
 
 }
@@ -68,7 +62,6 @@ int main(void){
     } 
 
     pthread_create(&envoi , NULL ,   &sendHandling , NULL);
-    sleep(4); 
     pthread_create(&reception , NULL ,   &recvHandling , NULL);
 
     pthread_join(envoi , NULL); 
